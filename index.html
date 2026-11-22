@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#1F4E78">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Табель">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<title>Табель часов</title>
+<style>
+  :root { --blue:#1F4E78; --line:#D9D9D9; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif; color:#1a1a1a; background:#f5f6f8; padding-bottom:90px; }
+  header { background:var(--blue); color:#fff; padding:14px 16px; }
+  header h1 { margin:0 0 6px; font-size:20px; }
+  header #who { font-size:14px; opacity:.95; }
+  .tabs { display:flex; margin:12px 16px 0; background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .tabs button { flex:1; padding:12px; font-size:15px; border:none; background:#fff; color:#555; cursor:pointer; }
+  .tabs button.active { background:var(--blue); color:#fff; font-weight:600; }
+  .bar { padding:12px 16px 4px; }
+  .bar input { width:100%; padding:10px; font-size:16px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  .hint { font-size:12px; color:#666; padding:2px 16px 0; margin:0; }
+  .group { margin:12px 16px 0; background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .group h2 { margin:0; padding:10px 12px; font-size:14px; background:#DDE7F2; color:#17375E; display:flex; justify-content:space-between; }
+  .row { display:flex; align-items:center; border-top:1px solid var(--line); }
+  .row .name { flex:1; padding:10px 12px; font-size:15px; }
+  .row input[type=number] { width:84px; padding:8px; font-size:16px; text-align:center; border:none; border-left:1px solid var(--line); background:#FFF9E6; }
+  .row input[type=number]:focus { outline:2px solid var(--blue); }
+  .row.done .name { color:#2e7d32; }
+  .mrow { display:flex; align-items:center; border-top:1px solid var(--line); }
+  .mrow .name { flex:1; padding:10px 12px; font-size:15px; }
+  .mrow .tot { width:84px; padding:8px; font-size:15px; text-align:center; font-weight:600; color:#17375E; }
+  .total { margin:12px 16px 0; background:#DDE7F2; border-radius:10px; padding:12px; font-size:16px; font-weight:600; color:#17375E; }
+  .actions { display:flex; gap:8px; padding:14px 16px; }
+  .actions .btn { flex:1; }
+  .btn { padding:10px 14px; font-size:15px; border:none; border-radius:8px; background:var(--blue); color:#fff; cursor:pointer; }
+  .btn.ghost { background:#fff; color:var(--blue); border:1px solid var(--blue); }
+  #exportBox { display:none; margin:4px 16px 0; background:#fff; border-radius:10px; padding:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  #exportBox textarea { width:100%; height:240px; font-family:monospace; font-size:13px; border:1px solid var(--line); border-radius:8px; padding:8px; }
+  .history { margin:4px 16px 0; background:#fff; border-radius:10px; padding:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .history h3 { margin:0 0 8px; font-size:14px; }
+  .history .day { font-size:14px; padding:6px 0; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+  .history .day:last-child { border-bottom:none; }
+  .history .day .del { color:#c62828; background:none; border:none; font-size:14px; }
+  #setup { position:fixed; inset:0; background:var(--blue); display:flex; align-items:center; justify-content:center; padding:16px; }
+  #setup .card { background:#fff; border-radius:14px; padding:22px; width:320px; }
+  #setup h2 { margin:0 0 14px; font-size:19px; color:#17375E; }
+  #setup label { font-size:12px; color:#555; display:block; margin:10px 0 4px; }
+  #setup input { width:100%; padding:11px; font-size:16px; border:1px solid var(--line); border-radius:8px; }
+  #setup .btn { width:100%; margin-top:16px; }
+</style>
+</head>
+<body>
+
+<div id="setup">
+  <div class="card">
+    <h2>Настройка табеля</h2>
+    <label>Имя</label>
+    <input id="s_name" placeholder="Иван">
+    <label>Фамилия</label>
+    <input id="s_surname" placeholder="Петров">
+    <label>Стройка</label>
+    <input id="s_site" list="sites" placeholder="Pardubice">
+    <datalist id="sites">
+      <option value="Hradec"><option value="Bratislava"><option value="petka">
+      <option value="HK barak"><option value="MK most"><option value="Kolevaly">
+      <option value="Trnava"><option value="Sako"><option value="Pardubice">
+      <option value="Most San"><option value="Parking">
+    </datalist>
+    <button class="btn" id="start">Начать</button>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <header>
+    <h1>Табель часов</h1>
+    <div id="who"></div>
+  </header>
+
+  <div class="tabs">
+    <button id="tabDay" class="active">По дням</button>
+    <button id="tabMonth">За месяц</button>
+  </div>
+
+  <div id="dayView">
+    <div class="bar"><input type="date" id="date"></div>
+    <p class="hint">Впиши часы за день напротив фамилий. Сохраняется на этом телефоне.</p>
+    <div id="workers"></div>
+    <div class="actions">
+      <button class="btn ghost" id="addWorker">+ Рабочий</button>
+      <button class="btn" id="export">Отчёт</button>
+    </div>
+  </div>
+
+  <div id="monthView" style="display:none">
+    <div class="bar"><input type="month" id="month"></div>
+    <div class="total" id="monthTotal"></div>
+    <div id="monthWorkers"></div>
+    <div class="actions"><button class="btn" id="export2">Отчёт</button></div>
+  </div>
+
+  <div id="exportBox">
+    <h3 style="margin:0 0 8px">Отчёт для отправки</h3>
+    <textarea id="exportText" readonly></textarea>
+    <div class="actions" style="padding:8px 0 0">
+      <button class="btn" id="copy">Скопировать</button>
+      <button class="btn" id="share">Отправить</button>
+    </div>
+  </div>
+
+  <div class="history" id="history">
+    <h3>История дней</h3>
+    <div id="historyList"><span style="color:#888">Пока нет записей</span></div>
+  </div>
+</div>
+
+<script>
+const KEY = "tabel_data_v4";
+const today = () => new Date().toISOString().slice(0,10);
+const thisMonth = () => new Date().toISOString().slice(0,7);
+
+function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e) { return {}; } }
+function save(d) { localStorage.setItem(KEY, JSON.stringify(d)); }
+
+const state = load();
+if (!state.days) state.days = {};
+if (!state.workers) state.workers = [];
+
+const $date = document.getElementById("date");
+const $month = document.getElementById("month");
+$date.value = state.currentDate || today();
+$month.value = thisMonth();
+
+function setupDone() { return !!(state.name && state.surname && state.site); }
+
+document.getElementById("start").addEventListener("click", () => {
+  const n = document.getElementById("s_name").value.trim();
+  const sn = document.getElementById("s_surname").value.trim();
+  const st = document.getElementById("s_site").value.trim();
+  if (!n || !sn || !st) { alert("Заполните имя, фамилию и стройку"); return; }
+  state.name = n; state.surname = sn; state.site = st;
+  save(state);
+  showApp();
+});
+
+function showApp() {
+  document.getElementById("setup").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  document.getElementById("who").textContent = `${state.name} ${state.surname} · ${state.site}`;
+  render();
+}
+
+$date.addEventListener("change", () => { state.currentDate = $date.value; save(state); render(); });
+$month.addEventListener("change", () => { renderMonth(); });
+
+function dayData() { return state.days[$date.value] || {}; }
+
+function render() { renderDay(); renderHistory(); renderMonth(); }
+
+function renderDay() {
+  const sd = dayData();
+  const box = document.getElementById("workers");
+  box.innerHTML = "";
+  if (!state.workers.length) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.style.padding = "16px";
+    p.textContent = "Сначала добавь рабочих кнопкой «+ Рабочий».";
+    box.appendChild(p);
+    return;
+  }
+  const grp = document.createElement("div");
+  grp.className = "group";
+  for (const w of state.workers) {
+    grp.appendChild(makeRow(w, sd[w] ?? ""));
+  }
+  box.appendChild(grp);
+}
+
+function makeRow(name, value) {
+  const row = document.createElement("div");
+  row.className = "row";
+  const nm = document.createElement("div");
+  nm.className = "name"; nm.textContent = name;
+  const inp = document.createElement("input");
+  inp.type = "number"; inp.min = "0"; inp.max = "24"; inp.step = "0.5"; inp.inputMode = "decimal";
+  inp.placeholder = "0";
+  inp.value = value === "" ? "" : value;
+  inp.addEventListener("input", () => {
+    const d = $date.value;
+    if (!state.days[d]) state.days[d] = {};
+    const v = inp.value === "" ? null : parseFloat(inp.value);
+    if (v == null || isNaN(v)) delete state.days[d][name]; else state.days[d][name] = v;
+    save(state);
+    row.classList.toggle("done", (v || 0) > 0);
+    renderMonth();
+  });
+  row.appendChild(nm); row.appendChild(inp);
+  return row;
+}
+
+function renderMonth() {
+  const m = $month.value;
+  let all = 0;
+  const wt = {};
+  for (const d of Object.keys(state.days)) {
+    if (!d.startsWith(m)) continue;
+    for (const [w, v] of Object.entries(state.days[d])) {
+      if (typeof v === "number" && v > 0) { wt[w] = (wt[w] || 0) + v; all += v; }
+    }
+  }
+  document.getElementById("monthTotal").textContent = `Всего за месяц: ${all} часов`;
+  const wBox = document.getElementById("monthWorkers");
+  wBox.innerHTML = "";
+  const workers = state.workers.slice().sort((a,b) => (wt[b]||0) - (wt[a]||0));
+  if (workers.length) {
+    const box = document.createElement("div");
+    box.className = "group";
+    const h = document.createElement("h2");
+    h.innerHTML = `<span>Рабочие</span><span>${all}</span>`;
+    box.appendChild(h);
+    for (const w of workers) {
+      const row = document.createElement("div");
+      row.className = "mrow";
+      const nm = document.createElement("div"); nm.className = "name"; nm.textContent = w;
+      const tot = document.createElement("div"); tot.className = "tot"; tot.textContent = wt[w] || "";
+      row.appendChild(nm); row.appendChild(tot); box.appendChild(row);
+    }
+    wBox.appendChild(box);
+  }
+}
+
+function renderHistory() {
+  const list = document.getElementById("historyList");
+  const days = Object.keys(state.days).filter(d => Object.values(state.days[d]).some(v => typeof v === "number" && v > 0)).sort().reverse();
+  if (!days.length) { list.innerHTML = '<span style="color:#888">Пока нет записей</span>'; return; }
+  list.innerHTML = "";
+  for (const d of days.slice(0, 40)) {
+    const n = Object.values(state.days[d]).filter(v => typeof v === "number" && v > 0).length;
+    const div = document.createElement("div");
+    div.className = "day";
+    const label = document.createElement("span");
+    label.textContent = `${d}  (${n} чел.)`;
+    const del = document.createElement("button");
+    del.className = "del"; del.textContent = "удалить";
+    del.addEventListener("click", () => { if (confirm(`Удалить ${d}?`)) { delete state.days[d]; save(state); render(); } });
+    div.appendChild(label); div.appendChild(del); list.appendChild(div);
+  }
+}
+
+document.getElementById("tabDay").addEventListener("click", () => {
+  document.getElementById("tabDay").classList.add("active");
+  document.getElementById("tabMonth").classList.remove("active");
+  document.getElementById("dayView").style.display = "block";
+  document.getElementById("monthView").style.display = "none";
+});
+document.getElementById("tabMonth").addEventListener("click", () => {
+  document.getElementById("tabMonth").classList.add("active");
+  document.getElementById("tabDay").classList.remove("active");
+  document.getElementById("dayView").style.display = "none";
+  document.getElementById("monthView").style.display = "block";
+  renderMonth();
+});
+
+document.getElementById("addWorker").addEventListener("click", () => {
+  const n = prompt("Фамилия рабочего:");
+  if (n && n.trim()) {
+    const w = n.trim();
+    if (!state.workers.includes(w)) { state.workers.push(w); save(state); }
+    render();
+  }
+});
+
+function buildExport() {
+  const days = Object.keys(state.days).filter(d => Object.values(state.days[d]).some(v => typeof v === "number" && v > 0)).sort();
+  if (!days.length) { alert("Нет записей"); return null; }
+  const site = state.site || "";
+  const lines = ["CSV: дата;стройка;фамилия;часы"];
+  for (const d of days) {
+    for (const [w, v] of Object.entries(state.days[d])) {
+      if (typeof v === "number" && v > 0) lines.push(`${d};${site};${w};${v}`);
+    }
+  }
+  lines.push("");
+  lines.push(`Бригадир: ${state.name} ${state.surname}`);
+  lines.push(`Стройка: ${site}`);
+  return lines.join("\n");
+}
+
+for (const id of ["export","export2"]) {
+  document.getElementById(id).addEventListener("click", () => {
+    const t = buildExport();
+    if (t) {
+      document.getElementById("exportText").value = t;
+      document.getElementById("exportBox").style.display = "block";
+      document.getElementById("exportBox").scrollIntoView({ behavior:"smooth" });
+    }
+  });
+}
+
+document.getElementById("copy").addEventListener("click", async () => {
+  const t = document.getElementById("exportText").value;
+  try { await navigator.clipboard.writeText(t); alert("Скопировано"); }
+  catch(e) { document.getElementById("exportText").select(); document.execCommand("copy"); alert("Скопировано"); }
+});
+
+document.getElementById("share").addEventListener("click", async () => {
+  const t = document.getElementById("exportText").value;
+  if (navigator.share) { try { await navigator.share({ title:"Табель", text:t }); } catch(e) {} }
+  else { try { await navigator.clipboard.writeText(t); } catch(e){} alert("Скопировано — вставьте в Telegram/WhatsApp"); }
+});
+
+if (setupDone()) { showApp(); }
+</script>
+<script>
+if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(() => {}); }
+</script>
+</body>
+</html>
