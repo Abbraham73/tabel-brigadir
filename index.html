@@ -36,6 +36,9 @@
   .total { margin:12px 16px 0; background:#DDE7F2; border-radius:10px; padding:12px; font-size:16px; font-weight:600; color:#17375E; }
   .actions { display:flex; gap:8px; padding:14px 16px; }
   .actions .btn { flex:1; }
+  .addrow { display:flex; gap:8px; padding:12px 16px 0; }
+  .addrow input { flex:1; padding:10px; font-size:16px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:#17375E; color:#fff; padding:10px 18px; border-radius:8px; font-size:14px; display:none; z-index:20; max-width:85%; text-align:center; }
   .btn { padding:10px 14px; font-size:15px; border:none; border-radius:8px; background:var(--blue); color:#fff; cursor:pointer; }
   .btn.ghost { background:#fff; color:var(--blue); border:1px solid var(--blue); }
   #exportBox { display:none; margin:4px 16px 0; background:#fff; border-radius:10px; padding:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
@@ -88,9 +91,12 @@
   <div id="dayView">
     <div class="bar"><input type="date" id="date"></div>
     <p class="hint">Впиши часы за день напротив фамилий. Сохраняется на этом телефоне.</p>
+    <div class="addrow">
+      <input type="text" id="newWorker" placeholder="Фамилия рабочего" autocomplete="off">
+      <button class="btn" id="addWorkerBtn">Добавить</button>
+    </div>
     <div id="workers"></div>
     <div class="actions">
-      <button class="btn ghost" id="addWorker">+ Рабочий</button>
       <button class="btn" id="export">Отчёт</button>
     </div>
   </div>
@@ -117,6 +123,8 @@
   </div>
 </div>
 
+<div id="toast"></div>
+
 <script>
 const KEY = "tabel_data_v4";
 const today = () => new Date().toISOString().slice(0,10);
@@ -124,6 +132,13 @@ const thisMonth = () => new Date().toISOString().slice(0,7);
 
 function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e) { return {}; } }
 function save(d) { localStorage.setItem(KEY, JSON.stringify(d)); }
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.style.display = "block";
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.display = "none"; }, 2000);
+}
 
 const state = load();
 if (!state.days) state.days = {};
@@ -140,7 +155,7 @@ document.getElementById("start").addEventListener("click", () => {
   const n = document.getElementById("s_name").value.trim();
   const sn = document.getElementById("s_surname").value.trim();
   const st = document.getElementById("s_site").value.trim();
-  if (!n || !sn || !st) { alert("Заполните имя, фамилию и стройку"); return; }
+  if (!n || !sn || !st) { toast("Заполните имя, фамилию и стройку"); return; }
   state.name = n; state.surname = sn; state.site = st;
   save(state);
   showApp();
@@ -246,7 +261,7 @@ function renderHistory() {
     label.textContent = `${d}  (${n} чел.)`;
     const del = document.createElement("button");
     del.className = "del"; del.textContent = "удалить";
-    del.addEventListener("click", () => { if (confirm(`Удалить ${d}?`)) { delete state.days[d]; save(state); render(); } });
+    del.addEventListener("click", () => { delete state.days[d]; save(state); render(); toast("День удалён"); });
     div.appendChild(label); div.appendChild(del); list.appendChild(div);
   }
 }
@@ -265,18 +280,20 @@ document.getElementById("tabMonth").addEventListener("click", () => {
   renderMonth();
 });
 
-document.getElementById("addWorker").addEventListener("click", () => {
-  const n = prompt("Фамилия рабочего:");
-  if (n && n.trim()) {
-    const w = n.trim();
+function addWorker(name) {
+  if (name && name.trim()) {
+    const w = name.trim();
     if (!state.workers.includes(w)) { state.workers.push(w); save(state); }
+    document.getElementById("newWorker").value = "";
     render();
   }
-});
+}
+document.getElementById("addWorkerBtn").addEventListener("click", () => addWorker(document.getElementById("newWorker").value));
+document.getElementById("newWorker").addEventListener("keydown", (e) => { if (e.key === "Enter") addWorker(document.getElementById("newWorker").value); });
 
 function buildExport() {
   const days = Object.keys(state.days).filter(d => Object.values(state.days[d]).some(v => typeof v === "number" && v > 0)).sort();
-  if (!days.length) { alert("Нет записей"); return null; }
+  if (!days.length) { toast("Нет записей"); return null; }
   const site = state.site || "";
   const lines = ["CSV: дата;стройка;фамилия;часы"];
   for (const d of days) {
@@ -303,14 +320,14 @@ for (const id of ["export","export2"]) {
 
 document.getElementById("copy").addEventListener("click", async () => {
   const t = document.getElementById("exportText").value;
-  try { await navigator.clipboard.writeText(t); alert("Скопировано"); }
-  catch(e) { document.getElementById("exportText").select(); document.execCommand("copy"); alert("Скопировано"); }
+  try { await navigator.clipboard.writeText(t); toast("Скопировано"); }
+  catch(e) { document.getElementById("exportText").select(); document.execCommand("copy"); toast("Скопировано"); }
 });
 
 document.getElementById("share").addEventListener("click", async () => {
   const t = document.getElementById("exportText").value;
   if (navigator.share) { try { await navigator.share({ title:"Табель", text:t }); } catch(e) {} }
-  else { try { await navigator.clipboard.writeText(t); } catch(e){} alert("Скопировано — вставьте в Telegram/WhatsApp"); }
+  else { try { await navigator.clipboard.writeText(t); } catch(e){} toast("Скопировано — вставьте в Telegram/WhatsApp"); }
 });
 
 if (setupDone()) { showApp(); }
