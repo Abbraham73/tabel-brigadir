@@ -102,6 +102,7 @@
     <div id="workers"></div>
     <div class="actions">
       <button class="btn" id="export">Отчёт</button>
+      <button class="btn" id="sendServer">Отправить в таблицу</button>
     </div>
   </div>
 
@@ -109,7 +110,10 @@
     <div class="bar"><input type="month" id="month"></div>
     <div class="total" id="monthTotal"></div>
     <div id="monthWorkers"></div>
-    <div class="actions"><button class="btn" id="export2">Отчёт</button></div>
+    <div class="actions">
+      <button class="btn" id="export2">Отчёт</button>
+      <button class="btn" id="sendServer2">Отправить в таблицу</button>
+    </div>
   </div>
 
   <div id="exportBox">
@@ -131,6 +135,7 @@
 
 <script>
 const KEY = "tabel_data_v4";
+const SERVER_URL = "https://script.google.com/macros/s/AKfycbzjFHzgDp2TlMZZROan3L2W1gH36HEuIWpjvOOIqWrWcIN_CuaFx9y4rzTouEmAC4fmbQ/exec";
 const today = () => new Date().toISOString().slice(0,10);
 const thisMonth = () => new Date().toISOString().slice(0,7);
 
@@ -147,6 +152,7 @@ function toast(msg) {
 const state = load();
 if (!state.days) state.days = {};
 if (!state.workers) state.workers = [];
+if (!state.sentDates) state.sentDates = {};
 
 const $date = document.getElementById("date");
 const $month = document.getElementById("month");
@@ -238,6 +244,7 @@ function makeRow(name, value) {
     if (!state.days[d]) state.days[d] = {};
     const v = inp.value === "" ? null : parseFloat(inp.value);
     if (v == null || isNaN(v)) delete state.days[d][name]; else state.days[d][name] = v;
+    if (state.sentDates) delete state.sentDates[d];
     save(state);
     row.classList.toggle("done", (v || 0) > 0);
     renderMonth();
@@ -315,6 +322,7 @@ function removeWorker(name) {
   for (const d of Object.keys(state.days)) {
     if (state.days[d] && state.days[d][name] !== undefined) delete state.days[d][name];
   }
+  state.sentDates = {};
   save(state);
   render();
   toast("Рабочий удалён");
@@ -346,6 +354,7 @@ function addOrRename() {
           delete state.days[d][old];
         }
       }
+      state.sentDates = {};
       save(state);
     }
     cancelRename();
@@ -383,6 +392,39 @@ function buildExport() {
   lines.push(`Стройка: ${site}`);
   return lines.join("\n");
 }
+
+async function sendToServer() {
+  if (!state.site || !state.name) { toast("Сначала заполни имя и стройку"); return; }
+  const days = Object.keys(state.days)
+    .filter(d => !state.sentDates[d])
+    .filter(d => Object.values(state.days[d]).some(v => typeof v === "number" && v > 0))
+    .sort();
+  if (!days.length) { toast("Нет новых записей для отправки"); return; }
+  const rows = [];
+  for (const d of days) {
+    for (const [w, v] of Object.entries(state.days[d])) {
+      if (typeof v === "number" && v > 0) {
+        rows.push({ date: d, site: state.site, foreman: (state.name + " " + state.surname).trim(), worker: w, hours: v });
+      }
+    }
+  }
+  try {
+    await fetch(SERVER_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ foreman: (state.name + " " + state.surname).trim(), site: state.site, rows }),
+    });
+    days.forEach(d => { state.sentDates[d] = true; });
+    save(state);
+    toast("Отправлено в таблицу");
+  } catch (e) {
+    toast("Ошибка отправки, попробуй ещё раз");
+  }
+}
+
+document.getElementById("sendServer").addEventListener("click", sendToServer);
+document.getElementById("sendServer2").addEventListener("click", sendToServer);
 
 for (const id of ["export","export2"]) {
   document.getElementById(id).addEventListener("click", () => {
