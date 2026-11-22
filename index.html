@@ -27,6 +27,7 @@
   .group h2 { margin:0; padding:10px 12px; font-size:14px; background:#DDE7F2; color:#17375E; display:flex; justify-content:space-between; }
   .row { display:flex; align-items:center; border-top:1px solid var(--line); }
   .row .name { flex:1; padding:10px 12px; font-size:15px; }
+  .row .delw { background:none; border:none; color:#c62828; font-size:16px; padding:0 6px; cursor:pointer; }
   .row input[type=number] { width:84px; padding:8px; font-size:16px; text-align:center; border:none; border-left:1px solid var(--line); background:#FFF9E6; }
   .row input[type=number]:focus { outline:2px solid var(--blue); }
   .row.done .name { color:#2e7d32; }
@@ -73,13 +74,15 @@
       <option value="Trnava"><option value="Sako"><option value="Pardubice">
       <option value="Most San"><option value="Parking">
     </datalist>
-    <button class="btn" id="start">Начать</button>
+    <button class="btn" id="start">Сохранить</button>
   </div>
 </div>
 
 <div id="app" style="display:none">
   <header>
-    <h1>Табель часов</h1>
+    <h1 style="display:flex;justify-content:space-between;align-items:center;">Табель часов
+      <button id="settingsBtn" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:14px;padding:6px 12px;border-radius:6px;cursor:pointer;">Настройки</button>
+    </h1>
     <div id="who"></div>
   </header>
 
@@ -94,6 +97,7 @@
     <div class="addrow">
       <input type="text" id="newWorker" placeholder="Фамилия рабочего" autocomplete="off">
       <button class="btn" id="addWorkerBtn">Добавить</button>
+      <button class="btn ghost" id="cancelRename" style="display:none;">Отмена</button>
     </div>
     <div id="workers"></div>
     <div class="actions">
@@ -198,8 +202,12 @@ function renderDay() {
 function makeRow(name, value) {
   const row = document.createElement("div");
   row.className = "row";
+  const del = document.createElement("button");
+  del.className = "delw"; del.textContent = "✕"; del.title = "Удалить рабочего";
+  del.addEventListener("click", () => { removeWorker(name); });
   const nm = document.createElement("div");
   nm.className = "name"; nm.textContent = name;
+  nm.addEventListener("click", () => { startRename(name); });
   const inp = document.createElement("input");
   inp.type = "number"; inp.min = "0"; inp.max = "24"; inp.step = "0.5"; inp.inputMode = "decimal";
   inp.placeholder = "0";
@@ -213,7 +221,7 @@ function makeRow(name, value) {
     row.classList.toggle("done", (v || 0) > 0);
     renderMonth();
   });
-  row.appendChild(nm); row.appendChild(inp);
+  row.appendChild(del); row.appendChild(nm); row.appendChild(inp);
   return row;
 }
 
@@ -280,16 +288,64 @@ document.getElementById("tabMonth").addEventListener("click", () => {
   renderMonth();
 });
 
-function addWorker(name) {
-  if (name && name.trim()) {
-    const w = name.trim();
-    if (!state.workers.includes(w)) { state.workers.push(w); save(state); }
+let renameTarget = null;
+function removeWorker(name) {
+  state.workers = state.workers.filter(w => w !== name);
+  for (const d of Object.keys(state.days)) {
+    if (state.days[d] && state.days[d][name] !== undefined) delete state.days[d][name];
+  }
+  save(state);
+  render();
+  toast("Рабочий удалён");
+}
+function startRename(name) {
+  renameTarget = name;
+  document.getElementById("newWorker").value = name;
+  document.getElementById("addWorkerBtn").textContent = "Сохранить";
+  document.getElementById("cancelRename").style.display = "block";
+  document.getElementById("newWorker").focus();
+}
+function cancelRename() {
+  renameTarget = null;
+  document.getElementById("newWorker").value = "";
+  document.getElementById("addWorkerBtn").textContent = "Добавить";
+  document.getElementById("cancelRename").style.display = "none";
+}
+function addOrRename() {
+  const name = document.getElementById("newWorker").value.trim();
+  if (!name) { toast("Введите фамилию"); return; }
+  if (renameTarget) {
+    const old = renameTarget;
+    if (name !== old && !state.workers.includes(name)) {
+      const idx = state.workers.indexOf(old);
+      if (idx >= 0) state.workers[idx] = name;
+      for (const d of Object.keys(state.days)) {
+        if (state.days[d] && state.days[d][old] !== undefined) {
+          state.days[d][name] = state.days[d][old];
+          delete state.days[d][old];
+        }
+      }
+      save(state);
+    }
+    cancelRename();
+    render();
+    toast("Сохранено");
+  } else {
+    if (!state.workers.includes(name)) { state.workers.push(name); save(state); }
     document.getElementById("newWorker").value = "";
     render();
   }
 }
-document.getElementById("addWorkerBtn").addEventListener("click", () => addWorker(document.getElementById("newWorker").value));
-document.getElementById("newWorker").addEventListener("keydown", (e) => { if (e.key === "Enter") addWorker(document.getElementById("newWorker").value); });
+document.getElementById("addWorkerBtn").addEventListener("click", addOrRename);
+document.getElementById("newWorker").addEventListener("keydown", (e) => { if (e.key === "Enter") addOrRename(); });
+document.getElementById("cancelRename").addEventListener("click", cancelRename);
+document.getElementById("settingsBtn").addEventListener("click", () => {
+  document.getElementById("s_name").value = state.name || "";
+  document.getElementById("s_surname").value = state.surname || "";
+  document.getElementById("s_site").value = state.site || "";
+  document.getElementById("setup").style.display = "flex";
+  document.getElementById("app").style.display = "none";
+});
 
 function buildExport() {
   const days = Object.keys(state.days).filter(d => Object.values(state.days[d]).some(v => typeof v === "number" && v > 0)).sort();
